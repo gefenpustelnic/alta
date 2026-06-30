@@ -1,64 +1,74 @@
 "use client";
 
+import { useChat } from "@ai-sdk/react";
+import { UIMessage } from "ai";
 import { useState, useRef, useEffect } from "react";
 import { AgentConfig } from "@/types/agent";
-
-interface Message {
-  role: "user" | "assistant";
-  content: string;
-}
 
 interface ChatPanelProps {
   onAgentConfig: (config: AgentConfig) => void;
 }
 
-export default function ChatPanel({ onAgentConfig }: ChatPanelProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content:
-        "Hi! I'm your AI agent builder. Describe the voice assistant you want to create — who it calls, what it's selling or offering, and how it should qualify leads. I'll build it for you.",
-    },
-  ]);
+const WELCOME_MESSAGE =
+  "Hi! I'm your AI agent builder. Describe the voice assistant you want to create — who it calls, what it's selling or offering, and how it should qualify leads. I'll build it for you.";
+
+export default function ChatPanel({ onAgentConfig: _onAgentConfig }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const { messages, sendMessage, status, error } = useChat({
+    messages: [
+      {
+        id: "welcome",
+        role: "assistant",
+        parts: [{ type: "text", text: WELCOME_MESSAGE }],
+      },
+    ],
+  });
+
+  const isBusy = status === "streaming" || status === "submitted";
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-    const userMessage: Message = { role: "user", content: input.trim() };
-    setMessages((prev) => [...prev, userMessage]);
+  const handleSend = async () => {
+    if (!input.trim() || isBusy) return;
+    const text = input.trim();
     setInput("");
-    // AI integration added in next issue
+    await sendMessage({ text });
   };
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-        {messages.map((msg, i) => (
-          <ChatMessage key={i} message={msg} />
+        {messages.map((msg) => (
+          <ChatMessage key={msg.id} message={msg} />
         ))}
+        {error && (
+          <p className="text-sm text-red-400 px-1">
+            Something went wrong. Please try again.
+          </p>
+        )}
         <div ref={bottomRef} />
       </div>
 
       <div className="px-5 py-4 border-t border-gray-800 shrink-0">
         <div className="flex gap-2">
           <input
-            className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-emerald-500 transition-colors"
+            className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-emerald-500 transition-colors disabled:opacity-50"
             placeholder="Describe your voice agent..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+            disabled={isBusy}
           />
           <button
             onClick={handleSend}
-            disabled={!input.trim()}
+            disabled={!input.trim() || isBusy}
             className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
           >
-            Send
+            {isBusy ? "..." : "Send"}
           </button>
         </div>
       </div>
@@ -66,8 +76,21 @@ export default function ChatPanel({ onAgentConfig }: ChatPanelProps) {
   );
 }
 
-function ChatMessage({ message }: { message: Message }) {
+function getMessageText(message: UIMessage): string {
+  return (
+    message.parts
+      ?.filter((part) => part.type === "text")
+      .map((part) => part.text)
+      .join("") ?? ""
+  );
+}
+
+function ChatMessage({ message }: { message: UIMessage }) {
   const isUser = message.role === "user";
+  const text = getMessageText(message);
+
+  if (!text) return null;
+
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
@@ -77,7 +100,7 @@ function ChatMessage({ message }: { message: Message }) {
             : "bg-gray-800 text-gray-200 rounded-bl-sm"
         }`}
       >
-        {message.content}
+        {text}
       </div>
     </div>
   );
