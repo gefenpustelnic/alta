@@ -6,15 +6,23 @@ import { useState, useRef, useEffect } from "react";
 import { AgentConfig } from "@/types/agent";
 
 interface ChatPanelProps {
+  agentConfig: AgentConfig | null;
   onAgentConfig: (config: AgentConfig) => void;
 }
 
 const WELCOME_MESSAGE =
   "Hi! I'm your AI agent builder. Describe the voice assistant you want to create — who it calls, what it's selling or offering, and how it should qualify leads. I'll build it for you.";
 
-export default function ChatPanel({ onAgentConfig: _onAgentConfig }: ChatPanelProps) {
+export default function ChatPanel({ agentConfig, onAgentConfig }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const agentConfigRef = useRef<AgentConfig | null>(agentConfig);
+  const processedToolCalls = useRef<Set<string>>(new Set());
+
+  // Keep ref in sync so the tool-result effect always sees the latest config
+  useEffect(() => {
+    agentConfigRef.current = agentConfig;
+  }, [agentConfig]);
 
   const { messages, sendMessage, status, error } = useChat({
     messages: [
@@ -31,6 +39,31 @@ export default function ChatPanel({ onAgentConfig: _onAgentConfig }: ChatPanelPr
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Apply agent config updates from tool call results
+  useEffect(() => {
+    for (const msg of messages) {
+      if (msg.role !== "assistant") continue;
+      for (const part of msg.parts ?? []) {
+        const partType = part.type as string;
+        if (!partType.startsWith("tool-")) continue;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const toolPart = part as any;
+        if (toolPart.state !== "output-available") continue;
+        if (processedToolCalls.current.has(toolPart.toolCallId)) continue;
+        processedToolCalls.current.add(toolPart.toolCallId);
+
+        const toolInput = toolPart.input as Partial<AgentConfig>;
+
+        if (partType === "tool-create_agent") {
+          onAgentConfig(toolInput as AgentConfig);
+        } else if (partType === "tool-update_agent" && agentConfigRef.current) {
+          onAgentConfig({ ...agentConfigRef.current, ...toolInput });
+        }
+      }
+    }
+  }, [messages, onAgentConfig]);
 
   const handleSend = async () => {
     if (!input.trim() || isBusy) return;
