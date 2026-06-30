@@ -47,11 +47,11 @@ function AgentFields({ config }: { config: AgentConfig }) {
       <Field label="First Message" value={config.firstMessage} />
       <Field label="System Prompt" value={config.systemPrompt} multiline />
       <div>
-        <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+        <p className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
           Qualification Questions
-        </label>
+        </p>
         <ol className="space-y-2">
-          {config.qualificationQuestions.map((q, i) => (
+          {(config.qualificationQuestions ?? []).map((q, i) => (
             <li key={i} className="flex gap-2 text-sm text-gray-200">
               <span className="text-emerald-400 font-mono shrink-0">{i + 1}.</span>
               <span>{q}</span>
@@ -75,15 +75,19 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">
+      <p className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">
         {label}
-      </label>
+      </p>
       <div
         className={`bg-gray-900 border border-gray-800 rounded-lg px-3 py-2.5 text-sm text-gray-200 ${
           multiline ? "whitespace-pre-wrap leading-relaxed" : "truncate"
         }`}
       >
-        {value || <span className="text-gray-600">—</span>}
+        {value == null ? (
+          <span className="text-gray-600">—</span>
+        ) : (
+          value
+        )}
       </div>
     </div>
   );
