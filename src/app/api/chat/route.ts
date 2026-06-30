@@ -37,18 +37,20 @@ After calling a tool, briefly confirm what you built or changed in one sentence.
 
 Voice IDs available: jennifer (warm female), mark (professional male), sarah (energetic female), rachel (calm female), josh (friendly male).`;
 
+const partialAgentConfigSchema = agentConfigSchema.partial();
+
 const agentTools = {
   create_agent: tool({
     description:
       "Generate a complete voice agent configuration from the user's description",
     inputSchema: agentConfigSchema,
-    execute: async () => ({ success: true }),
+    execute: async (_input: z.infer<typeof agentConfigSchema>) => ({ success: true }),
   }),
   update_agent: tool({
     description:
       "Update specific fields of the existing agent. Only include fields that should change.",
-    inputSchema: agentConfigSchema.partial(),
-    execute: async () => ({ success: true }),
+    inputSchema: partialAgentConfigSchema,
+    execute: async (_input: z.infer<typeof partialAgentConfigSchema>) => ({ success: true }),
   }),
 };
 

@@ -45,21 +45,24 @@ export default function ChatPanel({ agentConfig, onAgentConfig }: ChatPanelProps
     for (const msg of messages) {
       if (msg.role !== "assistant") continue;
       for (const part of msg.parts ?? []) {
-        const partType = part.type as string;
-        if (!partType.startsWith("tool-")) continue;
-
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const toolPart = part as any;
-        if (toolPart.state !== "output-available") continue;
-        if (processedToolCalls.current.has(toolPart.toolCallId)) continue;
-        processedToolCalls.current.add(toolPart.toolCallId);
+        const p = part as any;
+        // Only process completed tool calls (state guards input presence)
+        if (p.state !== "output-available") continue;
+        if (typeof p.toolCallId !== "string") continue;
+        if (processedToolCalls.current.has(p.toolCallId)) continue;
+        processedToolCalls.current.add(p.toolCallId);
 
-        const toolInput = toolPart.input as Partial<AgentConfig>;
+        // Name is in p.toolName (dynamic-tool) or encoded as "tool-{name}" in part.type
+        const toolName: string = p.toolName ?? String(part.type).replace(/^tool-/, "");
+        // tool input carries the agent config; execute() return value is unused client-side
+        const toolInput = p.input as Partial<AgentConfig>;
 
-        if (partType === "tool-create_agent") {
+        if (toolName === "create_agent") {
           onAgentConfig(toolInput as AgentConfig);
-        } else if (partType === "tool-update_agent" && agentConfigRef.current) {
-          onAgentConfig({ ...agentConfigRef.current, ...toolInput });
+        } else if (toolName === "update_agent") {
+          // Merge into existing config; if none yet, treat partial as a full create
+          onAgentConfig({ ...(agentConfigRef.current ?? {}), ...toolInput } as AgentConfig);
         }
       }
     }
