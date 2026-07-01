@@ -79,6 +79,11 @@ export default function ChatPanel({ agentConfig, assistantId, onAgentConfig, onA
           syncToVapi("create", fullConfig);
         } else if (toolName === "update_agent") {
           setToolError(null);
+          if (!agentConfigRef.current) {
+            // update_agent requires a base config — skip if state was lost (e.g. page reload)
+            setToolError("Lost agent state. Please describe your agent again to recreate it.");
+            continue;
+          }
           const merged = mergeAgentConfig(agentConfigRef.current, toolInput);
           onAgentConfig(merged);
           if (assistantIdRef.current) {
