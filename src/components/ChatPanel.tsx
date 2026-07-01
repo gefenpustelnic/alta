@@ -30,8 +30,8 @@ export default function ChatPanel({ agentConfig, assistantId, onAgentConfig, onA
 
   const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({
-      prepareSendMessagesRequest: ({ body }) => ({
-        body: { ...(body ?? {}), agentConfig: agentConfigRef.current },
+      prepareSendMessagesRequest: ({ messages: msgs, id, body }) => ({
+        body: { ...(body ?? {}), messages: msgs, id, agentConfig: agentConfigRef.current },
       }),
     }),
     messages: [
