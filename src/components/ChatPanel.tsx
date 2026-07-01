@@ -76,7 +76,7 @@ export default function ChatPanel({ agentConfig, assistantId, onAgentConfig, onA
           const merged = { ...(agentConfigRef.current ?? {}), ...toolInput } as AgentConfig;
           onAgentConfig(merged);
           if (assistantIdRef.current) {
-            syncToVapi("update", toolInput as Partial<AgentConfig>, assistantIdRef.current);
+            syncToVapi("update", merged, assistantIdRef.current);
           }
         }
       }

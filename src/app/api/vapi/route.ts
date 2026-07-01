@@ -51,9 +51,12 @@ export async function POST(req: Request): Promise<Response> {
       method = "POST";
       body = buildAssistantBody(config as AgentConfig);
     } else {
+      if (!assistantId) {
+        return Response.json({ error: "assistantId is required for update" }, { status: 400 });
+      }
       url = `${VAPI_BASE}/assistant/${assistantId}`;
       method = "PATCH";
-      body = config as Partial<AgentConfig>;
+      body = buildAssistantBody(config as AgentConfig);
     }
 
     const vapiRes = await fetch(url, {

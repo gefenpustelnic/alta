@@ -59,14 +59,15 @@ describe("POST /api/vapi", () => {
 
   // ── Behavior 2: update calls PATCH on existing assistant ─────────────────
 
-  it("update: calls Vapi PATCH /assistant/{id} and returns same assistantId", async () => {
+  it("update: calls Vapi PATCH /assistant/{id} with mapped body and returns same assistantId", async () => {
     const existingId = "vapi-assistant-existing";
     jest.spyOn(global, "fetch").mockResolvedValueOnce(
       new Response(JSON.stringify({ id: existingId }), { status: 200 }),
     );
 
+    const updatedConfig: AgentConfig = { ...VALID_CONFIG, name: "Solar Sam", voice: "sarah" };
     const res = await POST(
-      makeRequest({ action: "update", assistantId: existingId, config: { name: "Solar Sam" } }),
+      makeRequest({ action: "update", assistantId: existingId, config: updatedConfig }),
     );
     const body = await res.json();
 
@@ -76,7 +77,17 @@ describe("POST /api/vapi", () => {
     const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
     expect(url).toBe(`https://api.vapi.ai/assistant/${existingId}`);
     expect(init.method).toBe("PATCH");
-    expect(JSON.parse(init.body).name).toBe("Solar Sam");
+    const sentBody = JSON.parse(init.body);
+    expect(sentBody.name).toBe("Solar Sam");
+    // Verify the config is mapped through buildAssistantBody, not sent raw
+    expect(sentBody.voice).toEqual({ provider: "11labs", voiceId: "sarah" });
+    expect(sentBody.model.systemPrompt).toContain(updatedConfig.calendlyUrl);
+  });
+
+  it("returns 400 when assistantId is missing for update", async () => {
+    const res = await POST(makeRequest({ action: "update", config: VALID_CONFIG }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/assistantId/);
   });
 
   // ── Behavior 3: missing API key → 500 before any Vapi call ───────────────
