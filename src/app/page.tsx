@@ -12,7 +12,7 @@ export default function Home() {
     <main className="flex h-screen bg-gray-950 text-gray-100 overflow-hidden">
       <div className="flex flex-col w-1/2 border-r border-gray-800">
         <Header />
-        <ChatPanel onAgentConfig={setAgentConfig} />
+        <ChatPanel agentConfig={agentConfig} onAgentConfig={setAgentConfig} />
       </div>
       <div className="flex flex-col w-1/2">
         <AgentPreviewPanel config={agentConfig} />
