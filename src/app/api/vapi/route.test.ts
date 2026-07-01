@@ -52,7 +52,8 @@ describe("POST /api/vapi", () => {
     const sentBody = JSON.parse(init.body);
     expect(sentBody.name).toBe(VALID_CONFIG.name);
     expect(sentBody.firstMessage).toBe(VALID_CONFIG.firstMessage);
-    expect(sentBody.voice.voiceId).toBe(VALID_CONFIG.voice);
+    // jennifer maps to "nova" via VOICE_MAP; provider is openai (stable, named voices)
+    expect(sentBody.voice).toEqual({ provider: "openai", voiceId: "nova" });
     expect(sentBody.model.systemPrompt).toContain(VALID_CONFIG.systemPrompt);
     expect(sentBody.model.systemPrompt).toContain(VALID_CONFIG.calendlyUrl);
   });
@@ -80,7 +81,8 @@ describe("POST /api/vapi", () => {
     const sentBody = JSON.parse(init.body);
     expect(sentBody.name).toBe("Solar Sam");
     // Verify the config is mapped through buildAssistantBody, not sent raw
-    expect(sentBody.voice).toEqual({ provider: "11labs", voiceId: "sarah" });
+    // sarah maps to "shimmer" via VOICE_MAP
+    expect(sentBody.voice).toEqual({ provider: "openai", voiceId: "shimmer" });
     expect(sentBody.model.systemPrompt).toContain(updatedConfig.calendlyUrl);
   });
 

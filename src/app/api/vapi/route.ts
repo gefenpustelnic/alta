@@ -2,6 +2,15 @@ import { AgentConfig } from "@/types/agent";
 
 const VAPI_BASE = "https://api.vapi.ai";
 
+// Map our label → OpenAI TTS voice name (stable, supported by Vapi)
+const VOICE_MAP: Record<string, string> = {
+  jennifer: "nova",
+  sarah: "shimmer",
+  rachel: "alloy",
+  mark: "onyx",
+  josh: "echo",
+};
+
 function buildAssistantBody(config: AgentConfig): object {
   const systemPrompt = [
     config.systemPrompt,
@@ -16,12 +25,12 @@ function buildAssistantBody(config: AgentConfig): object {
     name: config.name,
     firstMessage: config.firstMessage,
     voice: {
-      provider: "11labs",
-      voiceId: config.voice,
+      provider: "openai",
+      voiceId: VOICE_MAP[config.voice] ?? "nova",
     },
     model: {
       provider: "anthropic",
-      model: "claude-haiku-4-5-20251001",
+      model: "claude-3-haiku-20240307",
       systemPrompt,
     },
   };
