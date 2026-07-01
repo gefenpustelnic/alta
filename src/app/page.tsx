@@ -7,12 +7,18 @@ import { AgentConfig } from "@/types/agent";
 
 export default function Home() {
   const [agentConfig, setAgentConfig] = useState<AgentConfig | null>(null);
+  const [assistantId, setAssistantId] = useState<string | null>(null);
 
   return (
     <main className="flex h-screen bg-gray-950 text-gray-100 overflow-hidden">
       <div className="flex flex-col w-1/2 border-r border-gray-800">
         <Header />
-        <ChatPanel agentConfig={agentConfig} onAgentConfig={setAgentConfig} />
+        <ChatPanel
+          agentConfig={agentConfig}
+          assistantId={assistantId}
+          onAgentConfig={setAgentConfig}
+          onAssistantId={setAssistantId}
+        />
       </div>
       <div className="flex flex-col w-1/2">
         <AgentPreviewPanel config={agentConfig} />
