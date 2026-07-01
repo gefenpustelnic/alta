@@ -21,17 +21,19 @@ function collectSourceFiles(dir: string, files: string[] = []): string[] {
   return files;
 }
 
-function isClientFile(filePath: string): boolean {
-  // API routes and lib utilities run server-side; everything else may be client-side
-  return !filePath.includes("/api/") && !filePath.includes("/lib/");
+// Only API route handlers are allowed to reference server-only env vars.
+// lib/ files are NOT exempt: they can be imported by client components and bundled for the browser.
+function isServerFile(filePath: string): boolean {
+  return filePath.includes("/api/");
 }
 
 describe("server secret isolation", () => {
   const srcDir = join(__dirname);
   const sourceFiles = collectSourceFiles(srcDir);
-  const clientFiles = sourceFiles.filter(isClientFile);
+  const clientFiles = sourceFiles.filter((f) => !isServerFile(f));
+  const serverFiles = sourceFiles.filter(isServerFile);
 
-  it("client files do not reference server-only env vars", () => {
+  it("non-api files do not reference server-only env vars", () => {
     const violations: string[] = [];
 
     for (const file of clientFiles) {
@@ -46,10 +48,15 @@ describe("server secret isolation", () => {
     expect(violations).toEqual([]);
   });
 
-  it("server-only vars are only accessed from api routes or lib", () => {
-    const serverFiles = sourceFiles.filter((f) => !isClientFile(f));
-    // Sanity check: the routes that need these vars actually exist
-    const routeFiles = serverFiles.filter((f) => f.includes("/api/"));
-    expect(routeFiles.length).toBeGreaterThan(0);
+  it("each server-only var is actually used in an api route handler", () => {
+    // Guards against the first test vacuously passing because no file references the vars at all.
+    const serverContent = serverFiles
+      .filter((f) => !f.includes(".test."))
+      .map((f) => readFileSync(f, "utf-8"))
+      .join("\n");
+
+    for (const varName of SERVER_ONLY_VARS) {
+      expect(serverContent).toContain(varName);
+    }
   });
 });
