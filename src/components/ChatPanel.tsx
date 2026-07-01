@@ -7,23 +7,25 @@ import { AgentConfig } from "@/types/agent";
 
 interface ChatPanelProps {
   agentConfig: AgentConfig | null;
+  assistantId: string | null;
   onAgentConfig: (config: AgentConfig) => void;
+  onAssistantId: (id: string) => void;
 }
 
 const WELCOME_MESSAGE =
   "Hi! I'm your AI agent builder. Describe the voice assistant you want to create — who it calls, what it's selling or offering, and how it should qualify leads. I'll build it for you.";
 
-export default function ChatPanel({ agentConfig, onAgentConfig }: ChatPanelProps) {
+export default function ChatPanel({ agentConfig, assistantId, onAgentConfig, onAssistantId }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const [toolError, setToolError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const agentConfigRef = useRef<AgentConfig | null>(agentConfig);
+  const assistantIdRef = useRef<string | null>(assistantId);
   const processedToolCalls = useRef<Set<string>>(new Set());
 
-  // Keep ref in sync so the tool-result effect always sees the latest config
-  useEffect(() => {
-    agentConfigRef.current = agentConfig;
-  }, [agentConfig]);
+  // Keep refs in sync so the tool-result effect always sees the latest values
+  useEffect(() => { agentConfigRef.current = agentConfig; }, [agentConfig]);
+  useEffect(() => { assistantIdRef.current = assistantId; }, [assistantId]);
 
   const { messages, sendMessage, status, error } = useChat({
     messages: [
@@ -66,15 +68,42 @@ export default function ChatPanel({ agentConfig, onAgentConfig }: ChatPanelProps
 
         if (toolName === "create_agent") {
           setToolError(null);
-          onAgentConfig(toolInput as AgentConfig);
+          const fullConfig = toolInput as AgentConfig;
+          onAgentConfig(fullConfig);
+          syncToVapi("create", fullConfig);
         } else if (toolName === "update_agent") {
           setToolError(null);
-          // Merge into existing config; if none yet, treat partial as a full create
-          onAgentConfig({ ...(agentConfigRef.current ?? {}), ...toolInput } as AgentConfig);
+          const merged = { ...(agentConfigRef.current ?? {}), ...toolInput } as AgentConfig;
+          onAgentConfig(merged);
+          if (assistantIdRef.current) {
+            syncToVapi("update", toolInput as Partial<AgentConfig>, assistantIdRef.current);
+          }
         }
       }
     }
   }, [messages, onAgentConfig]);
+
+  const syncToVapi = async (
+    action: "create" | "update",
+    config: AgentConfig | Partial<AgentConfig>,
+    existingId?: string,
+  ) => {
+    try {
+      const res = await fetch("/api/vapi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, config, assistantId: existingId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setToolError(data.error ?? "Failed to sync agent to Vapi.");
+      } else {
+        onAssistantId(data.assistantId);
+      }
+    } catch {
+      setToolError("Failed to reach Vapi. Please try again.");
+    }
+  };
 
   const handleSend = async () => {
     if (!input.trim() || isBusy) return;
