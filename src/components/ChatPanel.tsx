@@ -6,15 +6,24 @@ import { useState, useRef, useEffect } from "react";
 import { AgentConfig } from "@/types/agent";
 
 interface ChatPanelProps {
+  agentConfig: AgentConfig | null;
   onAgentConfig: (config: AgentConfig) => void;
 }
 
 const WELCOME_MESSAGE =
   "Hi! I'm your AI agent builder. Describe the voice assistant you want to create — who it calls, what it's selling or offering, and how it should qualify leads. I'll build it for you.";
 
-export default function ChatPanel({ onAgentConfig: _onAgentConfig }: ChatPanelProps) {
+export default function ChatPanel({ agentConfig, onAgentConfig }: ChatPanelProps) {
   const [input, setInput] = useState("");
+  const [toolError, setToolError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const agentConfigRef = useRef<AgentConfig | null>(agentConfig);
+  const processedToolCalls = useRef<Set<string>>(new Set());
+
+  // Keep ref in sync so the tool-result effect always sees the latest config
+  useEffect(() => {
+    agentConfigRef.current = agentConfig;
+  }, [agentConfig]);
 
   const { messages, sendMessage, status, error } = useChat({
     messages: [
@@ -32,6 +41,41 @@ export default function ChatPanel({ onAgentConfig: _onAgentConfig }: ChatPanelPr
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Apply agent config updates from tool call results
+  useEffect(() => {
+    for (const msg of messages) {
+      if (msg.role !== "assistant") continue;
+      for (const part of msg.parts ?? []) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const p = part as any;
+        // Only handle completed tool calls
+        if (p.state !== "output-available" && p.state !== "output-error") continue;
+        if (typeof p.toolCallId !== "string") continue;
+        if (processedToolCalls.current.has(p.toolCallId)) continue;
+        processedToolCalls.current.add(p.toolCallId);
+
+        if (p.state === "output-error") {
+          setToolError("Couldn't generate agent config. Please try again.");
+          continue;
+        }
+
+        // Name is in p.toolName (dynamic-tool) or encoded as "tool-{name}" in part.type
+        const toolName: string = p.toolName ?? String(part.type).replace(/^tool-/, "");
+        // tool input carries the agent config; execute() return value is unused client-side
+        const toolInput = p.input as Partial<AgentConfig>;
+
+        if (toolName === "create_agent") {
+          setToolError(null);
+          onAgentConfig(toolInput as AgentConfig);
+        } else if (toolName === "update_agent") {
+          setToolError(null);
+          // Merge into existing config; if none yet, treat partial as a full create
+          onAgentConfig({ ...(agentConfigRef.current ?? {}), ...toolInput } as AgentConfig);
+        }
+      }
+    }
+  }, [messages, onAgentConfig]);
+
   const handleSend = async () => {
     if (!input.trim() || isBusy) return;
     const text = input.trim();
@@ -45,9 +89,9 @@ export default function ChatPanel({ onAgentConfig: _onAgentConfig }: ChatPanelPr
         {messages.map((msg) => (
           <ChatMessage key={msg.id} message={msg} />
         ))}
-        {error && (
+        {(error || toolError) && (
           <p className="text-sm text-red-400 px-1">
-            Something went wrong. Please try again.
+            {toolError ?? "Something went wrong. Please try again."}
           </p>
         )}
         <div ref={bottomRef} />
