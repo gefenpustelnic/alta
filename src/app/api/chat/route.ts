@@ -1,6 +1,8 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { convertToModelMessages, isStepCount, streamText, UIMessage, tool } from "ai";
 import { z } from "zod";
+import { AgentConfig } from "@/types/agent";
+import { buildSystemPrompt } from "@/lib/agent";
 
 export const maxDuration = 30;
 
@@ -27,16 +29,6 @@ const agentConfigSchema = z.object({
     ),
 });
 
-const SYSTEM_PROMPT = `You are an AI voice agent builder for Alta. Help users create outbound voice assistants that call leads, qualify them, and direct qualified leads to book via Calendly.
-
-When you have gathered enough information (agent purpose, target leads, qualification criteria, tone), call the create_agent tool to generate the full configuration. Do not ask for every field explicitly — infer reasonable defaults from context.
-
-When the user asks to modify the existing agent (e.g. "make it friendlier", "add a budget question"), call the update_agent tool with only the fields that change. Preserve all other fields.
-
-After calling a tool, briefly confirm what you built or changed in one sentence.
-
-Voice IDs available: jennifer (warm female), mark (professional male), sarah (energetic female), rachel (calm female), josh (friendly male).`;
-
 const partialAgentConfigSchema = agentConfigSchema.partial();
 
 const agentTools = {
@@ -48,7 +40,7 @@ const agentTools = {
   }),
   update_agent: tool({
     description:
-      "Update specific fields of the existing agent. Only include fields that should change.",
+      "Update specific fields of the existing agent. Only include fields that should change. For array fields like qualificationQuestions, always send the complete updated list.",
     inputSchema: partialAgentConfigSchema,
     execute: async (_input: z.infer<typeof partialAgentConfigSchema>) => ({ success: true }),
   }),
@@ -63,11 +55,12 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { messages }: { messages: UIMessage[] } = await req.json();
+    const { messages, agentConfig }: { messages: UIMessage[]; agentConfig: AgentConfig | null } =
+      await req.json();
 
     const result = streamText({
       model: anthropic("claude-sonnet-4-6"),
-      system: SYSTEM_PROMPT,
+      system: buildSystemPrompt(agentConfig ?? null),
       tools: agentTools,
       stopWhen: isStepCount(2),
       messages: await convertToModelMessages(messages),
