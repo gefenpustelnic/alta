@@ -1,9 +1,10 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { UIMessage } from "ai";
+import { DefaultChatTransport, UIMessage } from "ai";
 import { useState, useRef, useEffect } from "react";
 import { AgentConfig } from "@/types/agent";
+import { mergeAgentConfig } from "@/lib/agent";
 
 interface ChatPanelProps {
   agentConfig: AgentConfig | null;
@@ -28,6 +29,11 @@ export default function ChatPanel({ agentConfig, assistantId, onAgentConfig, onA
   useEffect(() => { assistantIdRef.current = assistantId; }, [assistantId]);
 
   const { messages, sendMessage, status, error } = useChat({
+    transport: new DefaultChatTransport({
+      prepareSendMessagesRequest: ({ body }) => ({
+        body: { ...(body ?? {}), agentConfig: agentConfigRef.current },
+      }),
+    }),
     messages: [
       {
         id: "welcome",
@@ -73,7 +79,7 @@ export default function ChatPanel({ agentConfig, assistantId, onAgentConfig, onA
           syncToVapi("create", fullConfig);
         } else if (toolName === "update_agent") {
           setToolError(null);
-          const merged = { ...(agentConfigRef.current ?? {}), ...toolInput } as AgentConfig;
+          const merged = mergeAgentConfig(agentConfigRef.current, toolInput);
           onAgentConfig(merged);
           if (assistantIdRef.current) {
             syncToVapi("update", merged, assistantIdRef.current);
