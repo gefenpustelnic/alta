@@ -1,12 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { AgentConfig } from "@/types/agent";
 
 interface AgentPreviewPanelProps {
   config: AgentConfig | null;
+  assistantId: string | null;
 }
 
-export default function AgentPreviewPanel({ config }: AgentPreviewPanelProps) {
+export default function AgentPreviewPanel({ config, assistantId }: AgentPreviewPanelProps) {
   return (
     <div className="flex flex-col h-full">
       <div className="px-5 py-4 border-b border-gray-800 shrink-0">
@@ -21,7 +23,7 @@ export default function AgentPreviewPanel({ config }: AgentPreviewPanelProps) {
         )}
       </div>
 
-      <CallTrigger disabled={!config} />
+      <CallTrigger assistantId={assistantId} />
     </div>
   );
 }
@@ -93,21 +95,57 @@ function Field({
   );
 }
 
-function CallTrigger({ disabled }: { disabled: boolean }) {
+function CallTrigger({ assistantId }: { assistantId: string | null }) {
+  const [phone, setPhone] = useState("");
+  const [calling, setCalling] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const canCall = !!assistantId && phone.trim().length > 0 && !calling;
+
+  const handleCall = async () => {
+    if (!canCall) return;
+    setCalling(true);
+    setError(null);
+    setSuccess(false);
+    try {
+      const res = await fetch("/api/call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assistantId, phoneNumber: phone.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Failed to initiate call.");
+      } else {
+        setSuccess(true);
+      }
+    } catch {
+      setError("Could not reach the server. Please try again.");
+    } finally {
+      setCalling(false);
+    }
+  };
+
   return (
     <div className="px-5 py-4 border-t border-gray-800 shrink-0 space-y-3">
       <input
         type="tel"
         placeholder="+1 (555) 000-0000"
-        disabled={disabled}
+        value={phone}
+        onChange={(e) => { setPhone(e.target.value); setSuccess(false); setError(null); }}
+        disabled={!assistantId || calling}
         className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       />
       <button
-        disabled={disabled}
+        onClick={handleCall}
+        disabled={!canCall}
         className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors"
       >
-        📞 Call Me Now
+        {calling ? "Calling..." : "📞 Call Me Now"}
       </button>
+      {error && <p className="text-xs text-red-400">{error}</p>}
+      {success && <p className="text-xs text-emerald-400">Call initiated! Your phone should ring shortly.</p>}
     </div>
   );
 }

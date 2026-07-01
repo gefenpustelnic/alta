@@ -21,7 +21,7 @@ export default function Home() {
         />
       </div>
       <div className="flex flex-col w-1/2">
-        <AgentPreviewPanel config={agentConfig} />
+        <AgentPreviewPanel config={agentConfig} assistantId={assistantId} />
       </div>
     </main>
   );
