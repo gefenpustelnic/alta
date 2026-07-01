@@ -91,16 +91,34 @@ describe("POST /api/call", () => {
     expect((await res.json()).error).toMatch(/phoneNumber/);
   });
 
-  // ── Behavior 6: Vapi API error → 500 ─────────────────────────────────────
+  // ── Behavior 6: Vapi API error → 500, detail not leaked ─────────────────
 
-  it("returns 500 when Vapi API responds with an error", async () => {
+  it("returns 500 without leaking Vapi error details when Vapi API responds with an error", async () => {
     jest.spyOn(global, "fetch").mockResolvedValueOnce(
-      new Response(JSON.stringify({ message: "Invalid phone number" }), { status: 422 }),
+      new Response(JSON.stringify({ message: `phoneNumberId "phone-number-id-abc" not found` }), { status: 422 }),
     );
 
     const res = await POST(makeRequest({ assistantId: "asst-1", phoneNumber: "+15550001234" }));
+    const body = await res.json();
 
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toMatch(/Vapi/i);
+    expect(body.error).toMatch(/Vapi/i);
+    // detail must NOT be forwarded — it can contain server-side env var values
+    expect(JSON.stringify(body)).not.toContain("phone-number-id-abc");
+  });
+
+  // ── Behavior 7: malformed body → 400 ─────────────────────────────────────
+
+  it("returns 400 when request body is not valid JSON", async () => {
+    const req = new Request("http://localhost/api/call", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "not-json",
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/Invalid request body/i);
   });
 });

@@ -8,7 +8,12 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: "VAPI_PHONE_NUMBER_ID is not configured" }, { status: 500 });
   }
 
-  const { assistantId, phoneNumber } = await req.json();
+  let assistantId: string, phoneNumber: string;
+  try {
+    ({ assistantId, phoneNumber } = await req.json());
+  } catch {
+    return Response.json({ error: "Invalid request body" }, { status: 400 });
+  }
 
   if (!assistantId) {
     return Response.json({ error: "assistantId is required" }, { status: 400 });
@@ -33,7 +38,8 @@ export async function POST(req: Request): Promise<Response> {
 
     if (!vapiRes.ok) {
       const detail = await vapiRes.json().catch(() => ({}));
-      return Response.json({ error: `Vapi API error: ${vapiRes.status}`, detail }, { status: 500 });
+      console.error("Vapi call error:", vapiRes.status, detail);
+      return Response.json({ error: `Vapi API error: ${vapiRes.status}` }, { status: 500 });
     }
 
     const { id } = await vapiRes.json();
